@@ -186,14 +186,14 @@ def Get_Dataset(experiment, approach):
                     label='val_list_path', transform=transform_test)
         return train_dataset, val_dataset, attr_nums['pa100k'], description['pa100k']
     elif experiment == 'rap':
-        train_dataset = MultiLabelDataset(root='./rap',
+        train_dataset = MultiLabelDataset(root='D:/data/RAPv1/RAP_dataset/',
                     label='data_list/rap/train.txt', transform=transform_train)
-        val_dataset = MultiLabelDataset(root='./rap',
+        val_dataset = MultiLabelDataset(root='D:/data/RAPv1/RAP_dataset/',
                     label='data_list/rap/test.txt', transform=transform_test)
         return train_dataset, val_dataset, attr_nums['rap'], description['rap']
     elif experiment == 'peta':
-        train_dataset = MultiLabelDataset(root='data_path',
+        train_dataset = MultiLabelDataset(root='./data_path',
                     label='train_list_path', transform=transform_train)
-        val_dataset = MultiLabelDataset(root='data_path',
+        val_dataset = MultiLabelDataset(root='./data_path',
                     label='val_list_path', transform=transform_test)
         return train_dataset, val_dataset, attr_nums['peta'], description['peta']
