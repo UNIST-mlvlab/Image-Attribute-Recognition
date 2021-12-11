@@ -5,6 +5,7 @@ from torch.nn import functional as F
 
 import matplotlib.pyplot as plt
 import numpy as np
+from PIL import Image
 import torchvision
 
 __all__ = ['inception_iccv']
@@ -140,7 +141,7 @@ class InceptionNet(nn.Module):
         inp = np.clip(inp, 0, 1)
         return inp
 
-    def visualization(self, input, title): # assume input batch size == 1
+    def visualization(self, input, title, writer=None, target=None): # assume input batch size == 1
         input = input.cuda()
 
         temp=torchvision.utils.make_grid(input)
@@ -215,7 +216,7 @@ class InceptionNet(nn.Module):
 
 
         for i in range(self.num_classes):
-
+            t_imgs = torch.empty((0,3,256,128))
             for j, _ in enumerate(st_nets):
                 level, st_net, feature = _
                 stn_feature = feature * st_net.att_list[i](feature) + feature
@@ -224,14 +225,18 @@ class InceptionNet(nn.Module):
                 theta_i = st_net.transform_theta(theta_i, i)
 
                 visual_attention = st_net.stn(input, theta_i)
-                #transformed_img = torchvision.utils.make_grid(visual_attention.view(256,128,3)).cpu().detach().numpy()
                 transformed_img = torchvision.utils.make_grid(visual_attention)
                 transformed_img = self.convert_image_np(transformed_img)
-               # print(np.clip(transformed_img)
 
-                plt.imsave('visualization/' + title +Rap_attribute[i]+level+ '.png', transformed_img)
+                #plt.imsave('visualization/' + title +Rap_attribute[i]+level+ '.png', transformed_img)
+                ## <- 이부분에서 visual_attension 저장해야함
+                t_imgs = torch.cat((t_imgs, visual_attention.cpu()), dim=0)
 
-               ## <- 이부분에서 visual_attension 저장해야함
+            if writer is not None and target[i] == 1:
+                t_imgs = torchvision.utils.make_grid(t_imgs, normalize=True, scale_each=True)
+                writer.add_image(f'img_{title}/{Rap_attribute[i]}', t_imgs, 0)
+
+
 
 
 class BNInception(nn.Module):
