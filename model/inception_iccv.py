@@ -3,6 +3,11 @@ import torch.nn as nn
 import torch.tensor as tensor
 from torch.nn import functional as F
 
+import matplotlib.pyplot as plt
+import numpy as np
+from PIL import Image
+import torchvision
+
 __all__ = ['inception_iccv']
 
 def inception_iccv(pretrained=True, debug=False, **kwargs):
@@ -60,7 +65,7 @@ class SpatialTransformBlock(nn.Module):
 
     def stn(self, x, theta):
         grid = F.affine_grid(theta, x.size())
-        x = F.grid_sample(x, grid, padding_mode='border')
+        x = F.grid_sample(x, grid, padding_mode='zeros')
         return x.cuda()
 
     def transform_theta(self, theta_i, region_idx):
@@ -126,6 +131,113 @@ class InceptionNet(nn.Module):
         pred_5b = self.st_5b(fusion_5b)
 
         return pred_3b, pred_4d, pred_5b, main_pred
+
+    def convert_image_np(self, inp):
+        """Convert a Tensor to numpy image."""
+        inp = inp.cpu().detach().numpy().transpose((1, 2, 0))  # shape : (3,242,242)->(242,242,3)
+        mean = np.array([0.485, 0.456, 0.406])
+        std = np.array([0.229, 0.224, 0.225])
+        inp = std * inp + mean
+        inp = np.clip(inp, 0, 1)
+        return inp
+
+    def visualization(self, input, title, writer=None, target=None): # assume input batch size == 1
+        input = input.cuda()
+
+        temp=torchvision.utils.make_grid(input)
+        origin_img = self.convert_image_np(temp)
+
+        plt.imsave('visualization/'+title+'.png', origin_img)
+
+        feat_3b, feat_4d, feat_5b = self.main_branch(input)
+
+        fusion_5b = self.latlayer_5b(feat_5b)
+        fusion_4d = self._upsample_add(fusion_5b, self.latlayer_4d(feat_4d))
+        fusion_3b = self._upsample_add(fusion_4d, self.latlayer_3b(feat_3b))
+
+        Rap_attribute = ['Female',
+                         'AgeLess16',
+                         'Age17-30',
+                         'Age31-45',
+                         'BodyFat',
+                         'BodyNormal',
+                         'BodyThin',
+                         'Customer',
+                         'Clerk',
+                         'BaldHead',
+                         'LongHair',
+                         'BlackHair',
+                         'Hat',
+                         'Glasses',
+                         'Muffler',
+                         'Shirt',
+                         'Sweater',
+                         'Vest',
+                         'TShirt',
+                         'Cotton',
+                         'Jacket',
+                         'Suit-Up',
+                         'Tight',
+                         'ShortSleeve',
+                         'LongTrousers',
+                         'Skirt',
+                         'ShortSkirt',
+                         'Dress',
+                         'Jeans',
+                         'TightTrousers',
+                         'LeatherShoes',
+                         'SportShoes',
+                         'Boots',
+                         'ClothShoes',
+                         'CasualShoes',
+                         'Backpack',
+                         'SSBag',
+                         'HandBag',
+                         'Box',
+                         'PlasticBag',
+                         'PaperBag',
+                         'HandTrunk',
+                         'OtherAttchment',
+                         'Calling',
+                         'Talking',
+                         'Gathering',
+                         'Holding',
+                         'Pusing',
+                         'Pulling',
+                         'CarryingbyArm',
+                         'CarryingbyHand']
+
+        st_nets = [('3b', self.st_3b, fusion_3b), ('4d', self.st_4d, fusion_4d), ('5b', self.st_5b, fusion_5b)]
+        # st_nets is a dictionary which has spatial transformer network as key and fusion features as value
+
+        # There are three spatial transformer networks. st_nets = [self.st_3b,self.st_4d,self.st_5b]
+        # There are three fusion_features which are input of corresponding spatial transformer network.
+        # fusion_features = [fusion_3b, fusion_4d, fusion_5b]
+
+
+        for i in range(self.num_classes):
+            t_imgs = torch.empty((0,3,256,128))
+            for j, _ in enumerate(st_nets):
+                level, st_net, feature = _
+                stn_feature = feature * st_net.att_list[i](feature) + feature
+
+                theta_i = st_net.stn_list[i](F.avg_pool2d(stn_feature, stn_feature.size()[2:]).view(1,-1))
+                theta_i = st_net.transform_theta(theta_i, i)
+
+                visual_attention = st_net.stn(input, theta_i)
+                transformed_img = torchvision.utils.make_grid(visual_attention)
+                transformed_img = self.convert_image_np(transformed_img)
+
+                #plt.imsave('visualization/' + title +Rap_attribute[i]+level+ '.png', transformed_img)
+                ## <- 이부분에서 visual_attension 저장해야함
+                t_imgs = torch.cat((t_imgs, visual_attention.cpu()), dim=0)
+
+            if writer is not None and target[i] == 1:
+                t_imgs = torchvision.utils.make_grid(t_imgs, normalize=True, scale_each=True)
+                writer.add_image(f'img_{title}/{Rap_attribute[i]}', t_imgs, 0)
+
+
+
 
 class BNInception(nn.Module):
     """
