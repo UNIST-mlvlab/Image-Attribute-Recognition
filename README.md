@@ -11,7 +11,11 @@ pip install -r requirements.txt
 2. Put the model `saved_model.pt` file under `./app/alm/model`
 3. Train
 	```shell
-	python main.py --approach=inception_iccv --experiment=rap --visualization=False
+	python main.py --experiment=rap
+	```
+4. Visualize
+	```shell
+	python main.py --experiment=rap --vis
 	```
 
 ### Reference
